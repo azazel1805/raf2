@@ -1,5 +1,729 @@
-export default function App() {
+import { useMemo, useRef, useState } from "react";
+import type { BookItem, SiteItem, Tab, ToastMsg } from "./types";
+import { LS_BOOKS, LS_SITES, fmtNum, trunc } from "./types";
+import { useCountUp, useStored } from "./hooks";
+import {
+  SEED_QUERIES,
+  SEED_SITES,
+  domainOf,
+  fetchSiteMeta,
+  fetchVolume,
+  parseBookInput,
+  searchVolumes,
+} from "./api";
+import { BookIcon, GlobeIcon, LogoMark, SearchIcon, SparkIcon, SpinnerIcon } from "./icons";
+import { EmptyGlobeArt, EmptyShelfArt, Modal, Reveal, ToastHost } from "./components/Shared";
+import {
+  AddBookBar,
+  BookCard,
+  BookCover,
+  BookModal,
+  ManualBookModal,
+} from "./components/BookBits";
+import { AddSiteBar, SiteCard, SiteModal } from "./components/SiteBits";
+
+type ModalState =
+  | { kind: "book"; id: string }
+  | { kind: "site"; id: string }
+  | { kind: "manual" }
+  | null;
+
+/* ---------- istatistik ---------- */
+
+function Stat({
+  value,
+  label,
+  decimals = 0,
+}: {
+  value: number;
+  label: string;
+  decimals?: number;
+}) {
+  const v = useCountUp(value);
+  const display =
+    decimals > 0
+      ? v.toLocaleString("tr-TR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+      : fmtNum(Math.round(v));
   return (
-    <div/>
+    <div>
+      <p className="font-display text-[34px] font-black leading-none tracking-tight text-cream tabular-nums">
+        {display}
+      </p>
+      <p className="mt-1.5 text-[10px] font-bold uppercase tracking-[0.22em] text-fog">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+/* ---------- toz zerreleri ---------- */
+
+const MOTES = Array.from({ length: 14 }, (_, i) => ({
+  left: `${(i * 7.3 + 3) % 98}%`,
+  top: `${16 + ((i * 13) % 72)}%`,
+  size: 2 + (i % 3),
+  dur: `${9 + (i % 8) * 1.8}s`,
+  delay: `${-(i * 1.9)}s`,
+}));
+
+function Motes() {
+  return (
+    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden>
+      {MOTES.map((m, i) => (
+        <span
+          key={i}
+          className="mote"
+          style={{
+            left: m.left,
+            top: m.top,
+            width: m.size,
+            height: m.size,
+            animationDuration: m.dur,
+            animationDelay: m.delay,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ---------- uygulama ---------- */
+
+export default function App() {
+  const [tab, setTab] = useState<Tab>("books");
+  const [books, setBooks] = useStored<BookItem[]>(LS_BOOKS, []);
+  const [sites, setSites] = useStored<SiteItem[]>(LS_SITES, []);
+
+  const [toasts, setToasts] = useState<ToastMsg[]>([]);
+  const toastId = useRef(0);
+
+  const [bookInput, setBookInput] = useState("");
+  const [bookBusy, setBookBusy] = useState(false);
+  const [bookError, setBookError] = useState<string | null>(null);
+  const [bookResults, setBookResults] = useState<BookItem[]>([]);
+
+  const [siteInput, setSiteInput] = useState("");
+  const [siteBusy, setSiteBusy] = useState(false);
+
+  const [bookQuery, setBookQuery] = useState("");
+  const [siteQuery, setSiteQuery] = useState("");
+  const [sort, setSort] = useState<"new" | "alpha" | "rating">("new");
+
+  const [modal, setModal] = useState<ModalState>(null);
+  const [seeding, setSeeding] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  /* ----- bildirimler ----- */
+  const dismissToast = (id: number) => setToasts((t) => t.filter((x) => x.id !== id));
+  const push = (
+    msg: string,
+    kind: ToastMsg["kind"] = "success",
+    action?: { label: string; fn: () => void }
+  ) => {
+    const id = ++toastId.current;
+    setToasts((t) => [...t.slice(-3), { id, msg, kind, actionLabel: action?.label, onAction: action?.fn }]);
+    window.setTimeout(() => dismissToast(id), 5000);
+  };
+
+  /* ----- kitap işlemleri ----- */
+  const addBook = (b: BookItem): boolean => {
+    if (books.some((x) => x.id === b.id)) {
+      push("Bu kitap zaten rafında.", "info");
+      return false;
+    }
+    setBooks((l) => [b, ...l]);
+    push(`“${trunc(b.title)}” rafa eklendi.`, "success");
+    return true;
+  };
+
+  const removeBook = (id: string) => {
+    const b = books.find((x) => x.id === id);
+    if (!b) return;
+    setBooks((l) => l.filter((x) => x.id !== id));
+    setModal(null);
+    push(`“${trunc(b.title)}” raftan indirildi.`, "info", {
+      label: "Geri al",
+      fn: () => setBooks((l) => [b, ...l]),
+    });
+  };
+
+  const patchBook = (id: string, patch: Partial<BookItem>) =>
+    setBooks((l) => l.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+
+  const handleBookSubmit = async () => {
+    const text = bookInput.trim();
+    if (!text || bookBusy) return;
+    setBookBusy(true);
+    setBookError(null);
+    setBookResults([]);
+    try {
+      const parsed = parseBookInput(text);
+      if (parsed.type === "id") {
+        const v = await fetchVolume(parsed.id);
+        if (v) {
+          addBook({
+            ...v,
+            playUrl: v.playUrl ?? `https://play.google.com/store/books/details?id=${parsed.id}`,
+            source: "play",
+          });
+          setBookInput("");
+        } else {
+          setBookError("Bağlantı çözülemedi — Google Books bu kimliği tanımadı.");
+        }
+      } else {
+        const res = await searchVolumes(parsed.q, 6);
+        if (res.length) {
+          setBookResults(res);
+        } else {
+          setBookError("Arama sonuç vermedi. Yazımı kontrol et ya da elle ekle.");
+        }
+      }
+    } catch {
+      setBookError("Ağ hatası — bağlantını kontrol edip tekrar dene.");
+    } finally {
+      setBookBusy(false);
+    }
+  };
+
+  /* ----- site işlemleri ----- */
+  const addSite = (url: string) => {
+    const domain = domainOf(url);
+    if (sites.some((s) => s.domain === domain)) {
+      push(`${domain} zaten kataloğunda.`, "info");
+      setSiteInput("");
+      return;
+    }
+    const item: SiteItem = {
+      id: `s-${Date.now()}`,
+      url,
+      domain,
+      title: domain,
+      addedAt: Date.now(),
+    };
+    setSites((l) => [item, ...l]);
+    setSiteInput("");
+    push(`${domain} eklendi — önizleme hazırlanıyor.`, "success");
+    fetchSiteMeta(url).then((m) => {
+      if (m.title) {
+        setSites((l) =>
+          l.map((s) =>
+            s.id === item.id ? { ...s, title: m.title!, provider: m.provider ?? s.provider } : s
+          )
+        );
+      }
+    });
+  };
+
+  const removeSite = (id: string) => {
+    const s = sites.find((x) => x.id === id);
+    if (!s) return;
+    setSites((l) => l.filter((x) => x.id !== id));
+    setModal(null);
+    push(`${s.domain} katalogdan silindi.`, "info", {
+      label: "Geri al",
+      fn: () => setSites((l) => [s, ...l]),
+    });
+  };
+
+  const patchSite = (id: string, patch: Partial<SiteItem>) =>
+    setSites((l) => l.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+
+  /* ----- örnek veri ----- */
+  const seed = async () => {
+    if (seeding) return;
+    setSeeding(true);
+    push("Örnek katalog hazırlanıyor…", "info");
+    try {
+      const found: BookItem[] = [];
+      for (const q of SEED_QUERIES) {
+        try {
+          const r = await searchVolumes(q, 1);
+          if (r[0]) found.push({ ...r[0], source: "search" });
+        } catch {
+          /* tek sorgu başarısız olsa da devam */
+        }
+      }
+      if (found.length) {
+        setBooks((l) => {
+          const ids = new Set(l.map((x) => x.id));
+          return [...found.filter((f) => !ids.has(f.id)), ...l];
+        });
+      }
+      const seedSites: SiteItem[] = SEED_SITES.map((s, i) => ({
+        id: `seed-${Date.now()}-${i}`,
+        url: s.url,
+        domain: domainOf(s.url),
+        title: s.title,
+        addedAt: Date.now() - i * 60_000,
+      }));
+      setSites((l) => {
+        const urls = new Set(l.map((x) => x.domain));
+        return [...seedSites.filter((s) => !urls.has(s.domain)), ...l];
+      });
+      push("Örnek katalog yüklendi — raflar doldu!", "success");
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const resetAll = () => {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      window.setTimeout(() => setConfirmReset(false), 3500);
+      return;
+    }
+    setBooks([]);
+    setSites([]);
+    setConfirmReset(false);
+    push("Katalog sıfırlandı.", "info");
+  };
+
+  /* ----- türetilmiş listeler ----- */
+  const shownBooks = useMemo(() => {
+    const q = bookQuery.trim().toLocaleLowerCase("tr");
+    let l = books.filter(
+      (b) =>
+        !q ||
+        b.title.toLocaleLowerCase("tr").includes(q) ||
+        b.authors.some((a) => a.toLocaleLowerCase("tr").includes(q))
+    );
+    if (sort === "alpha") l = [...l].sort((a, b) => a.title.localeCompare(b.title, "tr"));
+    else if (sort === "rating") l = [...l].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+    else l = [...l].sort((a, b) => b.addedAt - a.addedAt);
+    return l;
+  }, [books, bookQuery, sort]);
+
+  const shownSites = useMemo(() => {
+    const q = siteQuery.trim().toLocaleLowerCase("tr");
+    return sites.filter(
+      (s) =>
+        !q ||
+        s.title.toLocaleLowerCase("tr").includes(q) ||
+        s.domain.toLocaleLowerCase("tr").includes(q) ||
+        (s.provider ?? "").toLocaleLowerCase("tr").includes(q)
+    );
+  }, [sites, siteQuery]);
+
+  const showcase = useMemo(
+    () =>
+      [...books]
+        .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.addedAt - a.addedAt)
+        .slice(0, 10),
+    [books]
+  );
+
+  const totalPages = useMemo(
+    () => books.reduce((acc, b) => acc + (b.pageCount ?? 0), 0),
+    [books]
+  );
+  const avgRating = useMemo(() => {
+    const r = books.filter((b) => b.rating);
+    if (!r.length) return 0;
+    return r.reduce((a, b) => a + (b.rating ?? 0), 0) / r.length;
+  }, [books]);
+  const catCount = useMemo(
+    () => new Set(books.flatMap((b) => b.categories ?? [])).size,
+    [books]
+  );
+  const notedSites = useMemo(() => sites.filter((s) => s.note?.trim()).length, [sites]);
+
+  const modalBook =
+    modal?.kind === "book" ? books.find((b) => b.id === modal.id) : undefined;
+  const modalSite =
+    modal?.kind === "site" ? sites.find((s) => s.id === modal.id) : undefined;
+
+  const focusInput = (id: string) => {
+    const el = document.getElementById(id) as HTMLInputElement | null;
+    el?.focus();
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+  };
+
+  return (
+    <div className="relative min-h-screen">
+      {/* ortam katmanları */}
+      <div className="pointer-events-none fixed inset-0 z-0" aria-hidden>
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(1000px 700px at 88% -12%, rgba(85,160,142,.16), transparent 60%), radial-gradient(900px 620px at -8% 6%, rgba(232,163,61,.14), transparent 55%), radial-gradient(700px 500px at 50% 115%, rgba(85,160,142,.08), transparent 60%)",
+          }}
+        />
+        <div className="noise absolute inset-0" />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(130% 95% at 50% 8%, transparent 55%, rgba(4,8,6,.6) 100%)",
+          }}
+        />
+      </div>
+      <Motes />
+
+      {/* başlık */}
+      <header className="relative z-10 mx-auto max-w-6xl px-5 pb-6 pt-9">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-5">
+          <div className="flex items-center gap-3.5">
+            <span className="grid h-12 w-12 -rotate-3 place-items-center rounded-xl bg-amber text-ink shadow-lg shadow-amber/25 transition-transform duration-300 hover:rotate-0 hover:scale-105">
+              <LogoMark size={27} />
+            </span>
+            <div>
+              <h1 className="font-display text-[34px] font-black leading-none tracking-tight text-cream">
+                Raflık
+              </h1>
+              <p className="mt-1 text-xs tracking-wide text-fog">
+                Google Play kitapların & web sitelerin — tek kişilik vitrin
+              </p>
+            </div>
+          </div>
+
+          <nav aria-label="Sekmeler" className="relative grid w-[300px] grid-cols-2 rounded-full border border-line bg-pine p-1">
+            <span
+              aria-hidden
+              className={`absolute bottom-1 left-1 top-1 w-[calc(50%-4px)] rounded-full bg-amber transition-transform duration-300 ease-out ${
+                tab === "sites" ? "translate-x-full" : ""
+              }`}
+            />
+            <button
+              onClick={() => setTab("books")}
+              className={`relative z-10 flex items-center justify-center gap-2 rounded-full py-2 text-sm font-bold transition-colors ${
+                tab === "books" ? "text-ink" : "text-fog hover:text-cream"
+              }`}
+            >
+              <BookIcon size={15} />
+              Kitaplar
+              <span
+                className={`rounded-full px-1.5 py-px text-[10px] tabular-nums ${
+                  tab === "books" ? "bg-ink/15 text-ink" : "bg-moss text-fog"
+                }`}
+              >
+                {books.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setTab("sites")}
+              className={`relative z-10 flex items-center justify-center gap-2 rounded-full py-2 text-sm font-bold transition-colors ${
+                tab === "sites" ? "text-ink" : "text-fog hover:text-cream"
+              }`}
+            >
+              <GlobeIcon size={15} />
+              Siteler
+              <span
+                className={`rounded-full px-1.5 py-px text-[10px] tabular-nums ${
+                  tab === "sites" ? "bg-ink/15 text-ink" : "bg-moss text-fog"
+                }`}
+              >
+                {sites.length}
+              </span>
+            </button>
+          </nav>
+        </div>
+
+        {/* istatistik şeridi */}
+        <div className="mt-8 flex flex-wrap items-end gap-x-7 gap-y-4">
+          {tab === "books" ? (
+            <>
+              <Stat value={books.length} label="kitap rafta" />
+              <span className="hidden h-9 w-px bg-line sm:block" />
+              <Stat value={totalPages} label="toplam sayfa" />
+              <span className="hidden h-9 w-px bg-line sm:block" />
+              <Stat value={avgRating} decimals={1} label="ortalama puan" />
+              <span className="hidden h-9 w-px bg-line sm:block" />
+              <Stat value={catCount} label="kategori" />
+            </>
+          ) : (
+            <>
+              <Stat value={sites.length} label="site katalogda" />
+              <span className="hidden h-9 w-px bg-line sm:block" />
+              <Stat value={notedSites} label="notlu site" />
+              <p className="mb-1 ml-auto hidden max-w-[300px] text-right text-[11px] leading-relaxed text-fog/80 md:block">
+                İpucu: bazı siteler iframe'e izin vermez — o durumda modal'daki
+                <span className="font-bold text-teal"> Görsel </span>önizleme her zaman çalışır.
+              </p>
+            </>
+          )}
+        </div>
+      </header>
+
+      {/* ekleme çubuğu */}
+      <div className="relative z-20">
+        {tab === "books" ? (
+          <AddBookBar
+            value={bookInput}
+            onChange={setBookInput}
+            busy={bookBusy}
+            error={bookError}
+            results={bookResults}
+            onSubmit={handleBookSubmit}
+            onPick={(b) => {
+              addBook({ ...b, source: "search" });
+              setBookResults([]);
+              setBookInput("");
+            }}
+            onClear={() => setBookResults([])}
+            onManual={() => setModal({ kind: "manual" })}
+          />
+        ) : (
+          <AddSiteBar
+            value={siteInput}
+            onChange={setSiteInput}
+            busy={siteBusy}
+            onSubmit={addSite}
+          />
+        )}
+      </div>
+
+      {/* içerik */}
+      <main className="relative z-10">
+        {tab === "books" ? (
+          books.length === 0 ? (
+            <section className="mx-auto max-w-6xl px-5 pb-24 pt-12">
+              <Reveal className="mx-auto max-w-xl text-center">
+                <EmptyShelfArt className="mx-auto w-72 max-w-full" />
+                <h2 className="mt-7 font-display text-3xl font-black text-cream">
+                  Rafın şimdilik boş
+                </h2>
+                <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-fog">
+                  Google Play'deki kitabının bağlantısını yukarıya yapıştır; kapak, puan,
+                  açıklama ve tüm içerik bilgisi <strong className="text-amber">tek tıkla</strong> gelir.
+                  Ya da örnek katalogla hemen dene.
+                </p>
+                <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={() => focusInput("book-input")}
+                    className="rounded-lg bg-amber px-5 py-2.5 text-sm font-bold text-ink transition hover:bg-ambersoft active:scale-[0.97]"
+                  >
+                    Bağlantı yapıştır
+                  </button>
+                  <button
+                    onClick={seed}
+                    disabled={seeding}
+                    className="flex items-center gap-2 rounded-lg border border-line px-5 py-2.5 text-sm font-semibold text-cream transition hover:border-amber/60 hover:text-ambersoft active:scale-[0.97] disabled:opacity-50"
+                  >
+                    {seeding ? <SpinnerIcon size={15} /> : <SparkIcon size={15} />}
+                    Örnek katalogla dene
+                  </button>
+                </div>
+              </Reveal>
+            </section>
+          ) : (
+            <>
+              {/* vitrin */}
+              <section className="mx-auto max-w-6xl px-5 pt-9">
+                <div className="mb-4 flex items-baseline justify-between gap-3">
+                  <h2 className="font-display text-2xl font-black text-cream">
+                    Vitrin
+                    <span className="ml-2 align-middle text-[10px] font-bold uppercase tracking-[0.24em] text-amber">
+                      rafının yıldızları
+                    </span>
+                  </h2>
+                  <p className="text-xs text-fog">puana göre · ilk {showcase.length}</p>
+                </div>
+                <div className="relative pt-2">
+                  <div className="flex snap-x gap-5 overflow-x-auto pb-3">
+                    {showcase.map((b, i) => (
+                      <button
+                        key={b.id}
+                        onClick={() => setModal({ kind: "book", id: b.id })}
+                        className={`group w-[118px] shrink-0 snap-start transition-transform duration-300 hover:z-10 hover:scale-105 sm:w-[128px] ${
+                          i % 2 === 0 ? "rotate-[1.4deg]" : "-rotate-[1.3deg]"
+                        } hover:rotate-0!`}
+                        aria-label={`${b.title} detayı`}
+                      >
+                        <span className="block aspect-[2/3] overflow-hidden rounded-md border border-line shadow-xl shadow-black/40 transition group-hover:border-amber/60 group-hover:shadow-2xl">
+                          <BookCover book={b} />
+                        </span>
+                        <span className="mt-2 block truncate text-center font-display text-[13px] font-semibold text-cream/85 transition group-hover:text-ambersoft">
+                          {b.title}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="wood h-[11px] rounded-full" />
+                  <div className="mx-6 h-3 rounded-[100%] bg-black/50 blur-md" />
+                </div>
+              </section>
+
+              {/* katalog */}
+              <section className="mx-auto max-w-6xl px-5 pb-24 pt-10">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="font-display text-2xl font-black text-cream">
+                    Tüm katalog{" "}
+                    <span className="text-base font-semibold text-fog">
+                      · {fmtNum(shownBooks.length)} kitap
+                    </span>
+                  </h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative">
+                      <SearchIcon size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fog" />
+                      <input
+                        value={bookQuery}
+                        onChange={(e) => setBookQuery(e.target.value)}
+                        placeholder="Kitap veya yazar ara…"
+                        className="w-48 rounded-lg border border-line bg-pine py-2 pl-9 pr-3 text-[13px] text-cream placeholder:text-fog/60 transition focus:border-amber/60 focus:outline-none sm:w-56"
+                      />
+                    </div>
+                    <select
+                      value={sort}
+                      onChange={(e) => setSort(e.target.value as typeof sort)}
+                      className="rounded-lg border border-line bg-pine px-3 py-2 text-[13px] font-semibold text-cream transition focus:border-amber/60 focus:outline-none"
+                      aria-label="Sıralama"
+                    >
+                      <option value="new">En yeni</option>
+                      <option value="alpha">İsme göre (A–Z)</option>
+                      <option value="rating">Puana göre</option>
+                    </select>
+                  </div>
+                </div>
+
+                {shownBooks.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-line px-5 py-10 text-center text-sm text-fog">
+                    “{bookQuery}” ile eşleşen kitap yok.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                    {shownBooks.map((b, i) => (
+                      <BookCard
+                        key={b.id}
+                        book={b}
+                        index={i}
+                        onOpen={() => setModal({ kind: "book", id: b.id })}
+                        onDelete={() => removeBook(b.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          )
+        ) : sites.length === 0 ? (
+          <section className="mx-auto max-w-6xl px-5 pb-24 pt-12">
+            <Reveal className="mx-auto max-w-xl text-center">
+              <EmptyGlobeArt className="mx-auto w-72 max-w-full" />
+              <h2 className="mt-7 font-display text-3xl font-black text-cream">
+                Henüz siten yok
+              </h2>
+              <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-fog">
+                Oluşturduğun web sitelerinin URL'lerini ekle; Raflık ekran görüntüsünü çeker,
+                canlı önizlemeyi hazırlar, başlığı bulur.
+              </p>
+              <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+                <button
+                  onClick={() => focusInput("site-input")}
+                  className="rounded-lg bg-teal px-5 py-2.5 text-sm font-bold text-ink transition hover:brightness-110 active:scale-[0.97]"
+                >
+                  İlk siteni ekle
+                </button>
+                <button
+                  onClick={seed}
+                  disabled={seeding}
+                  className="flex items-center gap-2 rounded-lg border border-line px-5 py-2.5 text-sm font-semibold text-cream transition hover:border-teal/60 hover:text-teal active:scale-[0.97] disabled:opacity-50"
+                >
+                  {seeding ? <SpinnerIcon size={15} /> : <SparkIcon size={15} />}
+                  Örnek sitelerle dene
+                </button>
+              </div>
+            </Reveal>
+          </section>
+        ) : (
+          <section className="mx-auto max-w-6xl px-5 pb-24 pt-9">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-2xl font-black text-cream">
+                Web vitrini{" "}
+                <span className="text-base font-semibold text-fog">
+                  · {fmtNum(shownSites.length)} site
+                </span>
+              </h2>
+              <div className="relative">
+                <SearchIcon size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fog" />
+                <input
+                  value={siteQuery}
+                  onChange={(e) => setSiteQuery(e.target.value)}
+                  placeholder="Site ara…"
+                  className="w-48 rounded-lg border border-line bg-pine py-2 pl-9 pr-3 text-[13px] text-cream placeholder:text-fog/60 transition focus:border-teal/60 focus:outline-none sm:w-56"
+                />
+              </div>
+            </div>
+
+            {shownSites.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-line px-5 py-10 text-center text-sm text-fog">
+                “{siteQuery}” ile eşleşen site yok.
+              </p>
+            ) : (
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {shownSites.map((s, i) => (
+                  <SiteCard
+                    key={s.id}
+                    site={s}
+                    index={i}
+                    onOpen={() => setModal({ kind: "site", id: s.id })}
+                    onDelete={() => removeSite(s.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+      </main>
+
+      {/* alt bilgi */}
+      <footer className="relative z-10 border-t border-line/70">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-xs text-fog">
+          <p className="flex items-center gap-2">
+            <LogoMark size={14} className="text-amber" />
+            <span>
+              <strong className="font-display text-cream">Raflık</strong> — verilerin yalnızca bu
+              tarayıcıda saklanır.
+            </span>
+          </p>
+          {(books.length > 0 || sites.length > 0) && (
+            <button
+              onClick={resetAll}
+              className={`rounded-md border px-3 py-1.5 font-semibold transition active:scale-95 ${
+                confirmReset
+                  ? "border-clay bg-clay text-ink"
+                  : "border-line text-fog hover:border-clay/60 hover:text-clay"
+              }`}
+            >
+              {confirmReset ? "Emin misin? Tekrar bas — her şey silinir" : "Kataloğu sıfırla"}
+            </button>
+          )}
+        </div>
+      </footer>
+
+      {/* modallar */}
+      {modal?.kind === "book" && modalBook && (
+        <Modal label="Kitap detayı" onClose={() => setModal(null)}>
+          <BookModal
+            book={modalBook}
+            onClose={() => setModal(null)}
+            onDelete={() => removeBook(modalBook.id)}
+            onNote={(note) => patchBook(modalBook.id, { note })}
+          />
+        </Modal>
+      )}
+      {modal?.kind === "site" && modalSite && (
+        <Modal label="Site önizleme" wide onClose={() => setModal(null)}>
+          <SiteModal
+            site={modalSite}
+            onClose={() => setModal(null)}
+            onDelete={() => removeSite(modalSite.id)}
+            onNote={(note) => patchSite(modalSite.id, { note })}
+          />
+        </Modal>
+      )}
+      {modal?.kind === "manual" && (
+        <Modal label="Elle kitap ekle" onClose={() => setModal(null)}>
+          <ManualBookModal
+            onClose={() => setModal(null)}
+            onAdd={(b) => {
+              if (addBook(b)) setModal(null);
+            }}
+          />
+        </Modal>
+      )}
+
+      <ToastHost toasts={toasts} onDismiss={dismissToast} />
+    </div>
   );
 }
