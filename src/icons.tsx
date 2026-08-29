@@ -178,6 +178,13 @@ export const LockIcon = (p: IconProps) => (
   </svg>
 );
 
+export const InstallIcon = (p: IconProps) => (
+  <svg {...base(p.size, p.className)}>
+    <path d="M12 3v10M8 9.5l4 4 4-4" />
+    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+  </svg>
+);
+
 export const UnlockIcon = (p: IconProps) => (
   <svg {...base(p.size, p.className)}>
     <rect width="18" height="11" x="3" y="11" rx="2" />

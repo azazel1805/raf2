@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { BookItem, SiteItem, Tab, ToastMsg } from "./types";
 import { LS_BOOKS, LS_SITES, LS_UNLOCKED, fmtNum, trunc } from "./types";
 import { useCountUp, useStored } from "./hooks";
@@ -271,6 +271,40 @@ export default function App() {
   const gate = (action: string, fn: () => void) => {
     if (unlocked) fn();
     else openAuth(action, fn);
+  };
+
+  /* ----- PWA kurulumu ----- */
+  const [installEvt, setInstallEvt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installed, setInstalled] = useState(
+    () => window.matchMedia?.("(display-mode: standalone)").matches ?? false
+  );
+  useEffect(() => {
+    const onPrompt = (e: BeforeInstallPromptEvent) => {
+      e.preventDefault();
+      setInstallEvt(e);
+    };
+    const onInstalled = () => {
+      setInstalled(true);
+      setInstallEvt(null);
+      push("Raf cihazına yüklendi — ana ekrandan açabilirsin.", "success");
+    };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installEvt) return;
+    await installEvt.prompt();
+    const choice = await installEvt.userChoice;
+    if (choice.outcome === "accepted") {
+      setInstallEvt(null);
+      push("Yükleme başladı…", "success");
+    }
   };
 
   /* ----- kitap işlemleri ----- */
@@ -550,6 +584,16 @@ export default function App() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            {installEvt && !installed && (
+              <button
+                onClick={handleInstall}
+                title="Raf'ı cihazına uygulama olarak yükle"
+                className="flex items-center gap-1.5 rounded-full border border-teal/60 bg-teal/10 px-3 py-1.5 text-xs font-bold text-teal transition hover:bg-teal/20 active:scale-95"
+              >
+                <InstallIcon size={12} />
+                Uygulamayı yükle
+              </button>
+            )}
             {ADMIN_PASSWORD && (
               <button
                 onClick={() => (isLocked ? openAuth("yönetici girişi") : lock())}
