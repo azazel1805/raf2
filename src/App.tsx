@@ -185,15 +185,7 @@ function AuthPanel({
         )}
       </form>
 
-      <p className="mt-5 border-t border-line/70 pt-3.5 text-[11px] leading-relaxed text-fog/70">
-        Şifre,{" "}
-        <code className="rounded bg-moss px-1 py-0.5 font-mono text-[10px] text-amber">.env</code>{" "}
-        içindeki{" "}
-        <code className="rounded bg-moss px-1 py-0.5 font-mono text-[10px] text-amber">
-          VITE_ADMIN_PASSWORD
-        </code>{" "}
-        ile tanımlanır; boşsa koruma tamamen kapanır.
-      </p>
+      
     </div>
   );
 }
