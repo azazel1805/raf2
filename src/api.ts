@@ -2,6 +2,17 @@ import type { BookItem } from "./types";
 
 const GB = "https://www.googleapis.com/books/v1/volumes";
 
+/**
+ * Google Books API anahtarı — `.env` içindeki VITE_GOOGLE_BOOKS_API_KEY.
+ * Anahtar tanımlıysa her istekte gönderilir (kota artar, hata riski düşer);
+ * boşsa API anahtarsız, düşük kotalı modda çalışmaya devam eder.
+ */
+const GB_KEY = (import.meta.env.VITE_GOOGLE_BOOKS_API_KEY ?? "").trim();
+const withKey = (url: string) =>
+  GB_KEY
+    ? `${url}${url.includes("?") ? "&" : "?"}key=${encodeURIComponent(GB_KEY)}`
+    : url;
+
 export type BookInput =
   | { type: "id"; id: string }
   | { type: "search"; q: string };
@@ -62,7 +73,7 @@ function mapVolume(j: any): BookItem | null {
 }
 
 export async function fetchVolume(id: string): Promise<BookItem | null> {
-  const r = await fetch(`${GB}/${encodeURIComponent(id)}`);
+  const r = await fetch(withKey(`${GB}/${encodeURIComponent(id)}`));
   if (!r.ok) return null;
   const j = await r.json();
   return mapVolume(j);
@@ -72,7 +83,7 @@ export async function searchVolumes(
   q: string,
   max = 6
 ): Promise<BookItem[]> {
-  const url = `${GB}?q=${encodeURIComponent(q)}&maxResults=${max}`;
+  const url = withKey(`${GB}?q=${encodeURIComponent(q)}&maxResults=${max}`);
   const r = await fetch(url);
   if (!r.ok) return [];
   const j = await r.json();
