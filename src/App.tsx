@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { BookItem, SiteItem, Tab, ToastMsg } from "./types";
-import { LS_BOOKS, LS_SITES, LS_UNLOCKED, fmtNum, trunc } from "./types";
-import { useCountUp, useStored } from "./hooks";
+import { LS_BOOKS, LS_SITES, fmtNum, trunc } from "./types";
+import { useCountUp } from "./hooks";
+import {
+  loadCatalog,
+  localBooks,
+  localSites,
+  saveCatalog,
+  writeLocal,
+} from "./net";
 import {
   SEED_QUERIES,
   SEED_SITES,
@@ -11,7 +18,22 @@ import {
   parseBookInput,
   searchVolumes,
 } from "./api";
-import { BookIcon, GlobeIcon, LockIcon, LogoMark, SearchIcon, SparkIcon, SpinnerIcon, StarIcon, UnlockIcon, XIcon } from "./icons";
+import {
+  BookIcon,
+  CheckIcon,
+  CloudIcon,
+  CloudOffIcon,
+  GlobeIcon,
+  InstallIcon,
+  LockIcon,
+  LogoMark,
+  SearchIcon,
+  SparkIcon,
+  SpinnerIcon,
+  StarIcon,
+  UnlockIcon,
+  XIcon,
+} from "./icons";
 import { EmptyGlobeArt, EmptyShelfArt, Modal, Reveal, ToastHost } from "./components/Shared";
 import {
   AddBookBar,
@@ -91,21 +113,13 @@ function Motes() {
 
 const ADMIN_PASSWORD = (import.meta.env.VITE_ADMIN_PASSWORD ?? "").trim();
 
-const readUnlocked = () => {
-  try {
-    return localStorage.getItem(LS_UNLOCKED) === "1";
-  } catch {
-    return false;
-  }
-};
-
 function AuthPanel({
   action,
   onUnlock,
   onClose,
 }: {
   action: string;
-  onUnlock: () => void;
+  onUnlock: (key: string) => void;
   onClose: () => void;
 }) {
   const [value, setValue] = useState("");
@@ -114,7 +128,7 @@ function AuthPanel({
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!value) return;
-    if (value === ADMIN_PASSWORD) onUnlock();
+    if (value === ADMIN_PASSWORD) onUnlock(value);
     else {
       setWrong((w) => w + 1);
       setValue("");
@@ -194,11 +208,24 @@ function AuthPanel({
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("books");
-  const [books, setBooks] = useStored<BookItem[]>(LS_BOOKS, []);
-  const [sites, setSites] = useStored<SiteItem[]>(LS_SITES, []);
+  // Katalog önce yerel önbellekten anında açılır, sonra sunucudan tazelenir.
+  const [books, setBooks] = useState<BookItem[]>(localBooks);
+  const [sites, setSites] = useState<SiteItem[]>(localSites);
 
   const [toasts, setToasts] = useState<ToastMsg[]>([]);
   const toastId = useRef(0);
+
+  /* ----- bulut senkronizasyonu ----- */
+  type SyncState =
+    | "loading"
+    | "local"
+    | "syncing"
+    | "synced"
+    | "error";
+  const [sync, setSync] = useState<SyncState>("loading");
+  const adminKeyRef = useRef("");
+  const hydratedRef = useRef(false);
+  const justLoadedRef = useRef(false);
 
   const [bookInput, setBookInput] = useState("");
   const [bookBusy, setBookBusy] = useState(false);
@@ -215,7 +242,9 @@ export default function App() {
   const [modal, setModal] = useState<ModalState>(null);
   const [seeding, setSeeding] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
-  const [unlocked, setUnlocked] = useState(() => !ADMIN_PASSWORD || readUnlocked());
+  // Kilit oturumluktur: sayfa yenilenince şifre yeniden girilir,
+  // böylece yazma anahtarı hiçbir zaman kalıcı olarak saklanmaz.
+  const [unlocked, setUnlocked] = useState(() => ADMIN_PASSWORD.length === 0);
   const [authAction, setAuthAction] = useState<string | null>(null);
   const pendingFn = useRef<(() => void) | null>(null);
   const isLocked = ADMIN_PASSWORD.length > 0 && !unlocked;
@@ -237,12 +266,8 @@ export default function App() {
     pendingFn.current = fn ?? null;
     setAuthAction(action);
   };
-  const unlock = () => {
-    try {
-      localStorage.setItem(LS_UNLOCKED, "1");
-    } catch {
-      /* gizli mod — sorun değil */
-    }
+  const unlock = (key: string) => {
+    adminKeyRef.current = key;
     setUnlocked(true);
     setAuthAction(null);
     push("Yönetici doğrulandı — değişiklikler açık.", "success");
@@ -251,11 +276,7 @@ export default function App() {
     fn?.();
   };
   const lock = () => {
-    try {
-      localStorage.removeItem(LS_UNLOCKED);
-    } catch {
-      /* gizli mod — sorun değil */
-    }
+    adminKeyRef.current = "";
     setUnlocked(false);
     push("Yönetici oturumu kilitlendi — katalog salt gezilebilir.", "info");
   };
@@ -264,6 +285,60 @@ export default function App() {
     if (unlocked) fn();
     else openAuth(action, fn);
   };
+
+  /* ----- buluta yazma ----- */
+  const persist = async (b: BookItem[], s: SiteItem[]) => {
+    setSync("syncing");
+    const res = await saveCatalog(b, s, adminKeyRef.current);
+    if (res === "ok") {
+      setSync("synced");
+    } else if (res === "unauthorized") {
+      setSync("error");
+      push("Sunucu yönetici doğrulamasını reddetti — değişiklik kaydedilmedi.", "error");
+      lock();
+    } else {
+      setSync("error");
+    }
+  };
+
+  // Sunucudan yükle: açılışta paylaşılan kataloğu çek, yerel önbelleği tazele.
+  // Boş bir sunucu, zaten dolu olan yerel kataloğu ezmesin diye korunur.
+  useEffect(() => {
+    let alive = true;
+    loadCatalog().then(({ data, fromServer }) => {
+      if (!alive) return;
+      if (data && fromServer) {
+        const serverHasData = data.books.length > 0 || data.sites.length > 0;
+        const localHasData = localBooks().length > 0 || localSites().length > 0;
+        if (serverHasData || !localHasData) {
+          justLoadedRef.current = true;
+          setBooks(data.books);
+          setSites(data.sites);
+        }
+      }
+      hydratedRef.current = true;
+      setSync(fromServer ? "synced" : "local");
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Değişiklikleri önce yerelde önbelleğe al, sonra buluta yaz (gecikmeli).
+  useEffect(() => {
+    writeLocal(LS_BOOKS, books);
+    writeLocal(LS_SITES, sites);
+    if (!hydratedRef.current) return;
+    if (justLoadedRef.current) {
+      justLoadedRef.current = false;
+      return;
+    }
+    const t = window.setTimeout(() => {
+      void persist(books, sites);
+    }, 600);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [books, sites]);
 
   /* ----- PWA kurulumu ----- */
   const [installEvt, setInstallEvt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -576,6 +651,49 @@ export default function App() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            {/* veri durumu */}
+            <span
+              title={
+                sync === "synced"
+                  ? "Katalog sunucuyla eşitlendi — herkes aynı veriyi görür"
+                  : sync === "syncing"
+                    ? "Değişiklikler buluta yazılıyor"
+                    : sync === "local"
+                      ? "Sunucuya ulaşılamadı — yerel önbellek gösteriliyor"
+                      : sync === "error"
+                        ? "Son değişiklik kaydedilemedi"
+                        : "Katalog yükleniyor"
+              }
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition ${
+                sync === "synced"
+                  ? "border-teal/50 text-teal"
+                  : sync === "syncing" || sync === "loading"
+                    ? "border-line text-fog"
+                    : sync === "local"
+                      ? "border-amber/50 text-amber"
+                      : "border-clay/60 text-clay"
+              }`}
+            >
+              {sync === "synced" ? (
+                <CheckIcon size={12} />
+              ) : sync === "syncing" || sync === "loading" ? (
+                <SpinnerIcon size={12} />
+              ) : sync === "local" ? (
+                <CloudOffIcon size={12} />
+              ) : (
+                <CloudIcon size={12} />
+              )}
+              {sync === "synced"
+                ? "Eşitlendi"
+                : sync === "syncing"
+                  ? "Eşitleniyor"
+                  : sync === "loading"
+                    ? "Yükleniyor"
+                    : sync === "local"
+                      ? "Yerel mod"
+                      : "Kaydedilemedi"}
+            </span>
+
             {installEvt && !installed && (
               <button
                 onClick={handleInstall}
@@ -936,7 +1054,7 @@ export default function App() {
             <LogoMark size={14} className="text-amber" />
             <span>
               <strong className="font-display text-cream">Raf</strong> — katalog herkese açık,
-              ekleme &amp; silme şifre ister. Veriler bu tarayıcıda saklanır.
+              ekleme &amp; silme şifre ister. Veriler Netlify'da saklanır, her cihazda aynıdır.
             </span>
           </p>
           {(books.length > 0 || sites.length > 0) && (

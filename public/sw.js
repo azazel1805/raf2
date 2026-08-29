@@ -82,6 +82,21 @@ self.addEventListener("fetch", (event) => {
     host.endsWith("google.com") ||
     host.endsWith("noembed.com");
 
+  /* API (paylaşılan katalog): önce ağ, çevrimdışıysa son bilinen veri */
+  if (url.origin === self.location.origin && url.pathname.startsWith("/api/")) {
+    event.respondWith(
+      caches.open(RUNTIME_CACHE).then((cache) =>
+        fetch(req)
+          .then((res) => {
+            if (res && res.ok) cache.put(req, res.clone()).catch(() => {});
+            return res;
+          })
+          .catch(() => cache.match(req))
+      )
+    );
+    return;
+  }
+
   /* Aynı kaynak (hash'li JS/CSS/görsel): stale-while-revalidate */
   if (url.origin === self.location.origin) {
     event.respondWith(

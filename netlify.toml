@@ -6,6 +6,11 @@
 [build.environment]
   NODE_VERSION = "20"
 
+# Sunucu tarafı işlevler (paylaşılan katalog API'si)
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 # SPA yönlendirmesi: tüm istekler index.html'e düşsün
 [[redirects]]
   from = "/*"

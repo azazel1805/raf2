@@ -185,6 +185,20 @@ export const InstallIcon = (p: IconProps) => (
   </svg>
 );
 
+export const CloudIcon = (p: IconProps) => (
+  <svg {...base(p.size, p.className)}>
+    <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+  </svg>
+);
+
+export const CloudOffIcon = (p: IconProps) => (
+  <svg {...base(p.size, p.className)}>
+    <path d="M5.78 5.78A7 7 0 0 0 9 19h8.5c.5 0 .98-.09 1.42-.26" />
+    <path d="M21.6 16.4A4.5 4.5 0 0 0 17.5 10h-1.79A7 7 0 0 0 9.2 5.06" />
+    <path d="M2 2l20 20" />
+  </svg>
+);
+
 export const UnlockIcon = (p: IconProps) => (
   <svg {...base(p.size, p.className)}>
     <rect width="18" height="11" x="3" y="11" rx="2" />
