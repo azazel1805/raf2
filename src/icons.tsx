@@ -205,3 +205,57 @@ export const UnlockIcon = (p: IconProps) => (
     <path d="M7 11V7a5 5 0 0 1 9.9-1" />
   </svg>
 );
+
+export const PlayIcon = (p: IconProps) => (
+  <svg {...base(p.size, p.className)}>
+    <polygon points="7 4 20 12 7 20" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+export const PauseIcon = (p: IconProps) => (
+  <svg {...base(p.size, p.className)}>
+    <rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none" />
+    <rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+export const NextIcon = (p: IconProps) => (
+  <svg {...base(p.size, p.className)}>
+    <polygon points="5 5 15 12 5 19" fill="currentColor" stroke="none" />
+    <line x1="19" y1="5" x2="19" y2="19" />
+  </svg>
+);
+
+export const VolumeIcon = (p: IconProps) => (
+  <svg {...base(p.size, p.className)}>
+    <path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none" />
+    <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
+  </svg>
+);
+
+export const VolumeXIcon = (p: IconProps) => (
+  <svg {...base(p.size, p.className)}>
+    <path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none" />
+    <line x1="16" y1="9" x2="22" y2="15" />
+    <line x1="22" y1="9" x2="16" y2="15" />
+  </svg>
+);
+
+export const MusicIcon = (p: IconProps) => (
+  <svg {...base(p.size, p.className)}>
+    <path d="M9 18V5l12-2v13" />
+    <circle cx="6" cy="18" r="3" />
+    <circle cx="18" cy="16" r="3" />
+  </svg>
+);
+
+export const ListIcon = (p: IconProps) => (
+  <svg {...base(p.size, p.className)}>
+    <line x1="8" y1="6" x2="21" y2="6" />
+    <line x1="8" y1="12" x2="21" y2="12" />
+    <line x1="8" y1="18" x2="21" y2="18" />
+    <line x1="3" y1="6" x2="3.01" y2="6" />
+    <line x1="3" y1="12" x2="3.01" y2="12" />
+    <line x1="3" y1="18" x2="3.01" y2="18" />
+  </svg>
+);

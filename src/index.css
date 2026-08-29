@@ -186,6 +186,54 @@ body {
   animation: spinSlow 0.8s linear infinite;
 }
 
+/* ---------- raf radyo ---------- */
+
+/* yavaş plak dönüşü */
+@keyframes vinyl {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.vinyl {
+  animation: vinyl 3.4s linear infinite;
+  animation-play-state: paused;
+}
+.vinyl.playing {
+  animation-play-state: running;
+}
+
+/* akan şarkı adı */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-track {
+  animation: marquee 14s linear infinite;
+}
+
+/* ekolayzer çubukları */
+@keyframes eqbar {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.eqbar {
+  transform-origin: bottom;
+  animation: eqbar 0.9s ease-in-out infinite;
+  animation-play-state: paused;
+}
+.eqbar.playing {
+  animation-play-state: running;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

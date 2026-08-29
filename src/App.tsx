@@ -8,6 +8,7 @@ import {
   localSites,
   saveCatalog,
   writeLocal,
+  type CatalogSettings,
 } from "./net";
 import {
   SEED_QUERIES,
@@ -35,6 +36,7 @@ import {
   XIcon,
 } from "./icons";
 import { EmptyGlobeArt, EmptyShelfArt, Modal, Reveal, ToastHost } from "./components/Shared";
+import { RadioPlayer } from "./components/Radio";
 import {
   AddBookBar,
   BookCard,
@@ -211,6 +213,10 @@ export default function App() {
   // Katalog önce yerel önbellekten anında açılır, sonra sunucudan tazelenir.
   const [books, setBooks] = useState<BookItem[]>(localBooks);
   const [sites, setSites] = useState<SiteItem[]>(localSites);
+  // Ortak ayarlar (Raf Radyo playlist'i gibi) — sunucudan gelir, .env varsayılandır.
+  const [settings, setSettings] = useState<CatalogSettings>(() => ({
+    playlistId: (import.meta.env.VITE_YOUTUBE_PLAYLIST_ID ?? "").trim() || undefined,
+  }));
 
   const [toasts, setToasts] = useState<ToastMsg[]>([]);
   const toastId = useRef(0);
@@ -287,9 +293,9 @@ export default function App() {
   };
 
   /* ----- buluta yazma ----- */
-  const persist = async (b: BookItem[], s: SiteItem[]) => {
+  const persist = async (b: BookItem[], s: SiteItem[], cfg: CatalogSettings) => {
     setSync("syncing");
-    const res = await saveCatalog(b, s, adminKeyRef.current);
+    const res = await saveCatalog(b, s, adminKeyRef.current, cfg);
     if (res === "ok") {
       setSync("synced");
     } else if (res === "unauthorized") {
@@ -315,6 +321,11 @@ export default function App() {
           setBooks(data.books);
           setSites(data.sites);
         }
+        // Ortak ayarlar: sunucudaki playlist varsa .env varsayılanının önüne geçer.
+        const serverList = (data.settings as CatalogSettings | undefined)?.playlistId;
+        if (serverList && serverList.trim()) {
+          setSettings((prev) => ({ ...prev, playlistId: serverList.trim() }));
+        }
       }
       hydratedRef.current = true;
       setSync(fromServer ? "synced" : "local");
@@ -334,11 +345,11 @@ export default function App() {
       return;
     }
     const t = window.setTimeout(() => {
-      void persist(books, sites);
+      void persist(books, sites, settings);
     }, 600);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [books, sites]);
+  }, [books, sites, settings]);
 
   /* ----- PWA kurulumu ----- */
   const [installEvt, setInstallEvt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -1115,6 +1126,16 @@ export default function App() {
           />
         </Modal>
       )}
+
+      <RadioPlayer
+        playlistId={settings.playlistId ?? null}
+        locked={isLocked}
+        onSavePlaylist={(id) => {
+          setSettings((prev) => ({ ...prev, playlistId: id }));
+          push("Radyo listesi güncellendi — herkese yansıyacak.", "success");
+        }}
+        onLockedEdit={() => gate("radyo listesi", () => {})}
+      />
 
       <ToastHost toasts={toasts} onDismiss={dismissToast} />
     </div>

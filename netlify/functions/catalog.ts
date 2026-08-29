@@ -9,6 +9,7 @@ import { getStore } from "@netlify/blobs";
 interface CatalogBody {
   books?: unknown;
   sites?: unknown;
+  settings?: unknown;
 }
 
 const json = (data: unknown, status = 200) =>
@@ -22,7 +23,7 @@ export default async (req: Request) => {
 
   if (req.method === "GET") {
     const data = await store.get("catalog", { type: "json" }).catch(() => null);
-    return json(data ?? { books: [], sites: [], savedAt: null });
+    return json(data ?? { books: [], sites: [], settings: {}, savedAt: null });
   }
 
   if (req.method === "POST") {
@@ -52,6 +53,8 @@ export default async (req: Request) => {
     await store.setJSON("catalog", {
       books: body.books,
       sites: body.sites,
+      settings:
+        body.settings && typeof body.settings === "object" ? body.settings : {},
       savedAt,
     });
     return json({ ok: true, savedAt });

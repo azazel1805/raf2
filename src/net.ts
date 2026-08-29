@@ -3,9 +3,15 @@ import { LS_BOOKS, LS_SITES } from "./types";
 
 export type SaveResult = "ok" | "unauthorized" | "error";
 
+export interface CatalogSettings {
+  /** YouTube playlist ID (list=… parametresi) — Raf Radyo için */
+  playlistId?: string;
+}
+
 export interface CatalogPayload {
   books: BookItem[];
   sites: SiteItem[];
+  settings?: CatalogSettings;
   savedAt?: number | null;
 }
 
@@ -64,7 +70,8 @@ export async function loadCatalog(): Promise<{
 export async function saveCatalog(
   books: BookItem[],
   sites: SiteItem[],
-  adminKey: string
+  adminKey: string,
+  settings?: CatalogSettings
 ): Promise<SaveResult> {
   try {
     const headers: Record<string, string> = {
@@ -74,7 +81,7 @@ export async function saveCatalog(
     const r = await fetch("/api/catalog", {
       method: "POST",
       headers,
-      body: JSON.stringify({ books, sites }),
+      body: JSON.stringify({ books, sites, settings }),
     });
     if (r.status === 403) return "unauthorized";
     if (!r.ok) return "error";
