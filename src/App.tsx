@@ -879,7 +879,7 @@ export default function App() {
                   <h2 className="font-display text-2xl font-black text-cream">
                     Vitrin
                     <span className="ml-2 align-middle text-[10px] font-bold uppercase tracking-[0.24em] text-amber">
-                      senin seçtiklerin
+                      benim seçtiklerim
                     </span>
                   </h2>
                   <p className="text-xs text-fog">
