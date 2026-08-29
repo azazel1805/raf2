@@ -5,6 +5,7 @@ import { hashHue } from "../api";
 import {
   BookIcon,
   ExternalIcon,
+  LockIcon,
   PencilIcon,
   PlusIcon,
   SearchIcon,
@@ -89,6 +90,8 @@ export function AddBookBar({
   onPick,
   onClear,
   onManual,
+  locked = false,
+  onLocked,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -99,9 +102,15 @@ export function AddBookBar({
   onPick: (b: BookItem) => void;
   onClear: () => void;
   onManual: () => void;
+  locked?: boolean;
+  onLocked?: () => void;
 }) {
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (locked) {
+      onLocked?.();
+      return;
+    }
     if (value.trim() && !busy) onSubmit();
   };
   return (
@@ -123,21 +132,38 @@ export function AddBookBar({
             />
             <input
               id="book-input"
-              value={value}
+              value={locked ? "" : value}
               onChange={(e) => onChange(e.target.value)}
-              placeholder="https://play.google.com/store/books/details?id=…  veya  “Simyacı”"
-              className="w-full rounded-lg border border-line bg-pine py-2.5 pl-10 pr-3 text-sm text-cream placeholder:text-fog/60 transition focus:border-amber/60 focus:bg-moss focus:outline-none"
+              disabled={locked}
+              placeholder={
+                locked
+                  ? "Ekleme kilitli — yönetici şifresi gerekli"
+                  : "https://play.google.com/store/books/details?id=…  veya  “Simyacı”"
+              }
+              className="w-full rounded-lg border border-line bg-pine py-2.5 pl-10 pr-3 text-sm text-cream placeholder:text-fog/60 transition focus:border-amber/60 focus:bg-moss focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
               aria-label="Google Play bağlantısı veya kitap adı"
             />
           </div>
           <button
             type="submit"
-            disabled={busy || !value.trim()}
-            className="flex shrink-0 items-center gap-2 rounded-lg bg-amber px-4 py-2.5 text-sm font-bold text-ink transition hover:bg-ambersoft active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 sm:px-5"
+            disabled={busy || (!locked && !value.trim())}
+            className={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 sm:px-5 ${
+              locked
+                ? "border border-amber/50 bg-transparent text-amber hover:bg-amber/10 disabled:opacity-100"
+                : "bg-amber text-ink hover:bg-ambersoft"
+            }`}
           >
-            {busy ? <SpinnerIcon size={16} /> : <PlusIcon size={16} />}
-            <span className="hidden sm:inline">Tek Tıkla Ekle</span>
-            <span className="sm:hidden">Ekle</span>
+            {busy ? (
+              <SpinnerIcon size={16} />
+            ) : locked ? (
+              <LockIcon size={16} />
+            ) : (
+              <PlusIcon size={16} />
+            )}
+            <span className="hidden sm:inline">
+              {locked ? "Kilitli — şifre gir" : "Tek Tıkla Ekle"}
+            </span>
+            <span className="sm:hidden">{locked ? "Kilitli" : "Ekle"}</span>
           </button>
         </form>
 
@@ -145,7 +171,7 @@ export function AddBookBar({
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-clay">
             <span>{error}</span>
             <button
-              onClick={onManual}
+              onClick={locked ? onLocked : onManual}
               className="rounded-md border border-clay/40 px-2 py-0.5 text-xs font-semibold text-clay transition hover:bg-clay hover:text-ink active:scale-95"
             >
               Manuel ekle
@@ -288,12 +314,14 @@ export function BookModal({
   onDelete,
   onNote,
   onToggleFeature,
+  locked = false,
 }: {
   book: BookItem;
   onClose: () => void;
   onDelete: () => void;
   onNote: (note: string) => void;
   onToggleFeature: () => void;
+  locked?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [note, setNote] = useState(book.note ?? "");
@@ -442,9 +470,14 @@ export function BookModal({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               onBlur={saveNote}
+              disabled={locked}
               rows={2}
-              placeholder="Bu kitaba dair notun… (tarayıcında saklanır)"
-              className="mt-2 w-full resize-none rounded-lg border border-line bg-ink p-3 text-sm text-cream placeholder:text-fog/50 transition focus:border-amber/60 focus:outline-none"
+              placeholder={
+                locked
+                  ? "Notlar yalnızca yönetici tarafından düzenlenebilir."
+                  : "Bu kitaba dair notun… (tarayıcında saklanır)"
+              }
+              className="mt-2 w-full resize-none rounded-lg border border-line bg-ink p-3 text-sm text-cream placeholder:text-fog/50 transition focus:border-amber/60 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
         </div>

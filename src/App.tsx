@@ -11,7 +11,7 @@ import {
   parseBookInput,
   searchVolumes,
 } from "./api";
-import { BookIcon, GlobeIcon, LockIcon, LogoMark, SearchIcon, SparkIcon, SpinnerIcon, StarIcon } from "./icons";
+import { BookIcon, GlobeIcon, LockIcon, LogoMark, SearchIcon, SparkIcon, SpinnerIcon, StarIcon, UnlockIcon, XIcon } from "./icons";
 import { EmptyGlobeArt, EmptyShelfArt, Modal, Reveal, ToastHost } from "./components/Shared";
 import {
   AddBookBar,
@@ -87,7 +87,7 @@ function Motes() {
   );
 }
 
-/* ---------- kilit ekranı ---------- */
+/* ---------- yönetici koruması ---------- */
 
 const ADMIN_PASSWORD = (import.meta.env.VITE_ADMIN_PASSWORD ?? "").trim();
 
@@ -99,7 +99,15 @@ const readUnlocked = () => {
   }
 };
 
-function LockScreen({ onUnlock }: { onUnlock: () => void }) {
+function AuthPanel({
+  action,
+  onUnlock,
+  onClose,
+}: {
+  action: string;
+  onUnlock: () => void;
+  onClose: () => void;
+}) {
   const [value, setValue] = useState("");
   const [wrong, setWrong] = useState(0);
 
@@ -114,84 +122,78 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-5 py-10">
-      <div className="pointer-events-none absolute inset-0" aria-hidden>
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(900px 600px at 85% -10%, rgba(85,160,142,.16), transparent 60%), radial-gradient(800px 560px at -5% 8%, rgba(232,163,61,.13), transparent 55%)",
-          }}
-        />
-        <div className="noise absolute inset-0" />
-      </div>
-      <Motes />
-
-      <div
-        key={wrong}
-        className={`relative w-full max-w-sm rounded-xl border border-line bg-pine/90 p-8 shadow-2xl shadow-black/60 backdrop-blur ${
-          wrong > 0 ? "shake" : ""
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          <span className="grid h-11 w-11 -rotate-3 place-items-center rounded-xl bg-amber text-ink shadow-lg shadow-amber/25">
-            <LogoMark size={24} />
-          </span>
-          <div>
-            <p className="font-display text-2xl font-black leading-none text-cream">Raf</p>
-            <p className="mt-1 text-[11px] tracking-wide text-fog">tek kişilik vitrin</p>
-          </div>
-          <span className="ml-auto grid h-8 w-8 place-items-center rounded-full border border-amber/40 text-amber">
-            <LockIcon size={14} />
-          </span>
+    <div
+      key={wrong}
+      className={`w-full max-w-md rounded-xl border border-line bg-pine p-7 shadow-2xl shadow-black/60 ${
+        wrong > 0 ? "shake" : ""
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <span className="grid h-10 w-10 -rotate-3 place-items-center rounded-xl bg-amber text-ink shadow-lg shadow-amber/25">
+          <LockIcon size={19} />
+        </span>
+        <div>
+          <h2 className="font-display text-lg font-black leading-tight text-cream">
+            Yönetici doğrulaması
+          </h2>
+          <p className="text-xs text-fog">
+            “{action}” işlemi şifre ister
+          </p>
         </div>
-
-        <h2 className="mt-7 font-display text-xl font-bold text-cream">Bu vitrin kilitli</h2>
-        <p className="mt-2 text-[13px] leading-relaxed text-fog">
-          Katalog yalnızca sahibine açık. Devam etmek için yönetici şifresini gir.
-        </p>
-
-        <form onSubmit={submit} className="mt-5">
-          <label
-            htmlFor="admin-pw"
-            className="text-[10px] font-bold uppercase tracking-[0.18em] text-fog"
-          >
-            Yönetici şifresi
-          </label>
-          <div className="mt-2 flex gap-2">
-            <input
-              id="admin-pw"
-              type="password"
-              autoFocus
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="••••••••"
-              className="w-full rounded-lg border border-line bg-ink px-3.5 py-2.5 text-sm text-cream placeholder:text-fog/50 transition focus:border-amber/60 focus:outline-none"
-            />
-            <button
-              type="submit"
-              className="shrink-0 rounded-lg bg-amber px-4 py-2.5 text-sm font-bold text-ink transition hover:bg-ambersoft active:scale-95"
-            >
-              Aç
-            </button>
-          </div>
-          {wrong > 0 && (
-            <p className="mt-2.5 text-xs font-semibold text-clay">
-              Şifre yanlış — tekrar dene. ({wrong}. deneme)
-            </p>
-          )}
-        </form>
-
-        <p className="mt-6 border-t border-line/70 pt-4 text-[11px] leading-relaxed text-fog/70">
-          Şifre, projedeki{" "}
-          <code className="rounded bg-moss px-1 py-0.5 font-mono text-[10px] text-amber">.env</code>{" "}
-          dosyasında{" "}
-          <code className="rounded bg-moss px-1 py-0.5 font-mono text-[10px] text-amber">
-            VITE_ADMIN_PASSWORD
-          </code>{" "}
-          değişkeniyle tanımlanır. Boş bırakılırsa kilit ekranı kapanır.
-        </p>
+        <button
+          onClick={onClose}
+          aria-label="Kapat"
+          className="ml-auto rounded-md p-1.5 text-fog transition hover:bg-moss hover:text-cream active:scale-90"
+        >
+          <XIcon size={16} />
+        </button>
       </div>
+
+      <p className="mt-4 text-[13px] leading-relaxed text-fog">
+        Katalog herkesin gezmesine açık; yalnızca{" "}
+        <strong className="text-cream">ekleme ve silme</strong> yönetici şifresi ister.
+      </p>
+
+      <form onSubmit={submit} className="mt-4">
+        <label
+          htmlFor="admin-pw"
+          className="text-[10px] font-bold uppercase tracking-[0.18em] text-fog"
+        >
+          Yönetici şifresi
+        </label>
+        <div className="mt-2 flex gap-2">
+          <input
+            id="admin-pw"
+            type="password"
+            autoFocus
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="••••••••"
+            className="w-full rounded-lg border border-line bg-ink px-3.5 py-2.5 text-sm text-cream placeholder:text-fog/50 transition focus:border-amber/60 focus:outline-none"
+          />
+          <button
+            type="submit"
+            className="shrink-0 rounded-lg bg-amber px-4 py-2.5 text-sm font-bold text-ink transition hover:bg-ambersoft active:scale-95"
+          >
+            Doğrula
+          </button>
+        </div>
+        {wrong > 0 && (
+          <p className="mt-2.5 text-xs font-semibold text-clay">
+            Şifre yanlış — tekrar dene. ({wrong}. deneme)
+          </p>
+        )}
+      </form>
+
+      <p className="mt-5 border-t border-line/70 pt-3.5 text-[11px] leading-relaxed text-fog/70">
+        Şifre,{" "}
+        <code className="rounded bg-moss px-1 py-0.5 font-mono text-[10px] text-amber">.env</code>{" "}
+        içindeki{" "}
+        <code className="rounded bg-moss px-1 py-0.5 font-mono text-[10px] text-amber">
+          VITE_ADMIN_PASSWORD
+        </code>{" "}
+        ile tanımlanır; boşsa koruma tamamen kapanır.
+      </p>
     </div>
   );
 }
@@ -221,7 +223,10 @@ export default function App() {
   const [modal, setModal] = useState<ModalState>(null);
   const [seeding, setSeeding] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
-  const [locked, setLocked] = useState(() => ADMIN_PASSWORD.length > 0 && !readUnlocked());
+  const [unlocked, setUnlocked] = useState(() => !ADMIN_PASSWORD || readUnlocked());
+  const [authAction, setAuthAction] = useState<string | null>(null);
+  const pendingFn = useRef<(() => void) | null>(null);
+  const isLocked = ADMIN_PASSWORD.length > 0 && !unlocked;
 
   /* ----- bildirimler ----- */
   const dismissToast = (id: number) => setToasts((t) => t.filter((x) => x.id !== id));
@@ -235,15 +240,23 @@ export default function App() {
     window.setTimeout(() => dismissToast(id), 5000);
   };
 
-  /* ----- kilit ----- */
+  /* ----- yönetici koruması ----- */
+  const openAuth = (action: string, fn?: () => void) => {
+    pendingFn.current = fn ?? null;
+    setAuthAction(action);
+  };
   const unlock = () => {
     try {
       localStorage.setItem(LS_UNLOCKED, "1");
     } catch {
       /* gizli mod — sorun değil */
     }
-    setLocked(false);
-    push("Kilit açıldı — hoş geldin.", "success");
+    setUnlocked(true);
+    setAuthAction(null);
+    push("Yönetici doğrulandı — değişiklikler açık.", "success");
+    const fn = pendingFn.current;
+    pendingFn.current = null;
+    fn?.();
   };
   const lock = () => {
     try {
@@ -251,7 +264,13 @@ export default function App() {
     } catch {
       /* gizli mod — sorun değil */
     }
-    setLocked(true);
+    setUnlocked(false);
+    push("Yönetici oturumu kilitlendi — katalog salt gezilebilir.", "info");
+  };
+  /** Değiştirici işlemler için kapı: kilitliyse şifre modalını açar, doğrulanınca işlemi sürdürür. */
+  const gate = (action: string, fn: () => void) => {
+    if (unlocked) fn();
+    else openAuth(action, fn);
   };
 
   /* ----- kitap işlemleri ----- */
@@ -491,8 +510,6 @@ export default function App() {
     el?.scrollIntoView({ block: "center", behavior: "smooth" });
   };
 
-  if (locked) return <LockScreen onUnlock={unlock} />;
-
   return (
     <div className="relative min-h-screen">
       {/* ortam katmanları */}
@@ -532,6 +549,25 @@ export default function App() {
             </div>
           </div>
 
+          <div className="flex flex-wrap items-center gap-3">
+            {ADMIN_PASSWORD && (
+              <button
+                onClick={() => (isLocked ? openAuth("yönetici girişi") : lock())}
+                title={
+                  isLocked
+                    ? "Yönetici olarak doğrulan"
+                    : "Yönetici oturumunu kilitle"
+                }
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition active:scale-95 ${
+                  isLocked
+                    ? "border-line text-fog hover:border-amber/60 hover:text-amber"
+                    : "border-amber/60 bg-amber/10 text-amber hover:bg-amber/20"
+                }`}
+              >
+                {isLocked ? <LockIcon size={12} /> : <UnlockIcon size={12} />}
+                {isLocked ? "Ziyaretçi" : "Yönetici"}
+              </button>
+            )}
           <nav aria-label="Sekmeler" className="relative grid w-[300px] grid-cols-2 rounded-full border border-line bg-pine p-1">
             <span
               aria-hidden
@@ -572,6 +608,7 @@ export default function App() {
               </span>
             </button>
           </nav>
+          </div>
         </div>
 
         {/* istatistik şeridi */}
@@ -609,21 +646,27 @@ export default function App() {
             busy={bookBusy}
             error={bookError}
             results={bookResults}
-            onSubmit={handleBookSubmit}
-            onPick={(b) => {
-              addBook({ ...b, source: "search" });
-              setBookResults([]);
-              setBookInput("");
-            }}
+            onSubmit={() => gate("kitap ekleme", handleBookSubmit)}
+            onPick={(b) =>
+              gate("kitap ekleme", () => {
+                addBook({ ...b, source: "search" });
+                setBookResults([]);
+                setBookInput("");
+              })
+            }
             onClear={() => setBookResults([])}
-            onManual={() => setModal({ kind: "manual" })}
+            onManual={() => gate("elle ekleme", () => setModal({ kind: "manual" }))}
+            locked={isLocked}
+            onLocked={() => openAuth("kitap ekleme")}
           />
         ) : (
           <AddSiteBar
             value={siteInput}
             onChange={setSiteInput}
             busy={siteBusy}
-            onSubmit={addSite}
+            onSubmit={(url) => gate("site ekleme", () => addSite(url))}
+            locked={isLocked}
+            onLocked={() => openAuth("site ekleme")}
           />
         )}
       </div>
@@ -645,13 +688,15 @@ export default function App() {
                 </p>
                 <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
                   <button
-                    onClick={() => focusInput("book-input")}
+                    onClick={() =>
+                      isLocked ? openAuth("kitap ekleme") : focusInput("book-input")
+                    }
                     className="rounded-lg bg-amber px-5 py-2.5 text-sm font-bold text-ink transition hover:bg-ambersoft active:scale-[0.97]"
                   >
                     Bağlantı yapıştır
                   </button>
                   <button
-                    onClick={seed}
+                    onClick={() => gate("örnek veri yükleme", seed)}
                     disabled={seeding}
                     className="flex items-center gap-2 rounded-lg border border-line px-5 py-2.5 text-sm font-semibold text-cream transition hover:border-amber/60 hover:text-ambersoft active:scale-[0.97] disabled:opacity-50"
                   >
@@ -688,7 +733,7 @@ export default function App() {
                       senin seçtiklerin burada durur.
                     </p>
                     <button
-                      onClick={suggestShowcase}
+                      onClick={() => gate("vitrin değişikliği", suggestShowcase)}
                       className="mt-5 rounded-lg border border-amber/50 px-4 py-2 text-xs font-bold text-amber transition hover:bg-amber hover:text-ink active:scale-95"
                     >
                       Puanı en yüksek 6 kitabı vitrine koy
@@ -765,8 +810,10 @@ export default function App() {
                         book={b}
                         index={i}
                         onOpen={() => setModal({ kind: "book", id: b.id })}
-                        onDelete={() => removeBook(b.id)}
-                        onToggleFeature={() => toggleFeature(b.id)}
+                        onDelete={() => gate("kitap silme", () => removeBook(b.id))}
+                        onToggleFeature={() =>
+                          gate("vitrin değişikliği", () => toggleFeature(b.id))
+                        }
                       />
                     ))}
                   </div>
@@ -787,13 +834,15 @@ export default function App() {
               </p>
               <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
                 <button
-                  onClick={() => focusInput("site-input")}
+                  onClick={() =>
+                    isLocked ? openAuth("site ekleme") : focusInput("site-input")
+                  }
                   className="rounded-lg bg-teal px-5 py-2.5 text-sm font-bold text-ink transition hover:brightness-110 active:scale-[0.97]"
                 >
                   İlk siteni ekle
                 </button>
                 <button
-                  onClick={seed}
+                  onClick={() => gate("örnek veri yükleme", seed)}
                   disabled={seeding}
                   className="flex items-center gap-2 rounded-lg border border-line px-5 py-2.5 text-sm font-semibold text-cream transition hover:border-teal/60 hover:text-teal active:scale-[0.97] disabled:opacity-50"
                 >
@@ -835,7 +884,7 @@ export default function App() {
                     site={s}
                     index={i}
                     onOpen={() => setModal({ kind: "site", id: s.id })}
-                    onDelete={() => removeSite(s.id)}
+                    onDelete={() => gate("site silme", () => removeSite(s.id))}
                   />
                 ))}
               </div>
@@ -850,23 +899,13 @@ export default function App() {
           <p className="flex items-center gap-2">
             <LogoMark size={14} className="text-amber" />
             <span>
-              <strong className="font-display text-cream">Raf</strong> — verilerin yalnızca bu
-              tarayıcıda saklanır.
+              <strong className="font-display text-cream">Raf</strong> — katalog herkese açık,
+              ekleme &amp; silme şifre ister. Veriler bu tarayıcıda saklanır.
             </span>
           </p>
-          {ADMIN_PASSWORD && (
-            <button
-              onClick={lock}
-              title="Vitrini kilitle"
-              className="flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 font-semibold transition hover:border-amber/60 hover:text-amber active:scale-95"
-            >
-              <LockIcon size={12} />
-              Kilitle
-            </button>
-          )}
           {(books.length > 0 || sites.length > 0) && (
             <button
-              onClick={resetAll}
+              onClick={() => gate("kataloğu sıfırlama", resetAll)}
               className={`rounded-md border px-3 py-1.5 font-semibold transition active:scale-95 ${
                 confirmReset
                   ? "border-clay bg-clay text-ink"
@@ -885,9 +924,10 @@ export default function App() {
           <BookModal
             book={modalBook}
             onClose={() => setModal(null)}
-            onDelete={() => removeBook(modalBook.id)}
+            onDelete={() => gate("kitap silme", () => removeBook(modalBook.id))}
             onNote={(note) => patchBook(modalBook.id, { note })}
-            onToggleFeature={() => toggleFeature(modalBook.id)}
+            onToggleFeature={() => gate("vitrin değişikliği", () => toggleFeature(modalBook.id))}
+            locked={isLocked}
           />
         </Modal>
       )}
@@ -896,8 +936,9 @@ export default function App() {
           <SiteModal
             site={modalSite}
             onClose={() => setModal(null)}
-            onDelete={() => removeSite(modalSite.id)}
+            onDelete={() => gate("site silme", () => removeSite(modalSite.id))}
             onNote={(note) => patchSite(modalSite.id, { note })}
+            locked={isLocked}
           />
         </Modal>
       )}
@@ -908,6 +949,15 @@ export default function App() {
             onAdd={(b) => {
               if (addBook(b)) setModal(null);
             }}
+          />
+        </Modal>
+      )}
+      {authAction && (
+        <Modal label="Yönetici doğrulaması" onClose={() => setAuthAction(null)}>
+          <AuthPanel
+            action={authAction}
+            onUnlock={unlock}
+            onClose={() => setAuthAction(null)}
           />
         </Modal>
       )}
