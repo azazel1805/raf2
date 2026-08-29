@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import type { BookItem, SiteItem, Tab, ToastMsg } from "./types";
-import { LS_BOOKS, LS_SITES, fmtNum, trunc } from "./types";
+import { LS_BOOKS, LS_SITES, LS_UNLOCKED, fmtNum, trunc } from "./types";
 import { useCountUp, useStored } from "./hooks";
 import {
   SEED_QUERIES,
@@ -11,7 +11,7 @@ import {
   parseBookInput,
   searchVolumes,
 } from "./api";
-import { BookIcon, GlobeIcon, LogoMark, SearchIcon, SparkIcon, SpinnerIcon } from "./icons";
+import { BookIcon, GlobeIcon, LockIcon, LogoMark, SearchIcon, SparkIcon, SpinnerIcon, StarIcon } from "./icons";
 import { EmptyGlobeArt, EmptyShelfArt, Modal, Reveal, ToastHost } from "./components/Shared";
 import {
   AddBookBar,
@@ -87,6 +87,115 @@ function Motes() {
   );
 }
 
+/* ---------- kilit ekranı ---------- */
+
+const ADMIN_PASSWORD = (import.meta.env.VITE_ADMIN_PASSWORD ?? "").trim();
+
+const readUnlocked = () => {
+  try {
+    return localStorage.getItem(LS_UNLOCKED) === "1";
+  } catch {
+    return false;
+  }
+};
+
+function LockScreen({ onUnlock }: { onUnlock: () => void }) {
+  const [value, setValue] = useState("");
+  const [wrong, setWrong] = useState(0);
+
+  const submit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!value) return;
+    if (value === ADMIN_PASSWORD) onUnlock();
+    else {
+      setWrong((w) => w + 1);
+      setValue("");
+    }
+  };
+
+  return (
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-5 py-10">
+      <div className="pointer-events-none absolute inset-0" aria-hidden>
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(900px 600px at 85% -10%, rgba(85,160,142,.16), transparent 60%), radial-gradient(800px 560px at -5% 8%, rgba(232,163,61,.13), transparent 55%)",
+          }}
+        />
+        <div className="noise absolute inset-0" />
+      </div>
+      <Motes />
+
+      <div
+        key={wrong}
+        className={`relative w-full max-w-sm rounded-xl border border-line bg-pine/90 p-8 shadow-2xl shadow-black/60 backdrop-blur ${
+          wrong > 0 ? "shake" : ""
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <span className="grid h-11 w-11 -rotate-3 place-items-center rounded-xl bg-amber text-ink shadow-lg shadow-amber/25">
+            <LogoMark size={24} />
+          </span>
+          <div>
+            <p className="font-display text-2xl font-black leading-none text-cream">Raf</p>
+            <p className="mt-1 text-[11px] tracking-wide text-fog">tek kişilik vitrin</p>
+          </div>
+          <span className="ml-auto grid h-8 w-8 place-items-center rounded-full border border-amber/40 text-amber">
+            <LockIcon size={14} />
+          </span>
+        </div>
+
+        <h2 className="mt-7 font-display text-xl font-bold text-cream">Bu vitrin kilitli</h2>
+        <p className="mt-2 text-[13px] leading-relaxed text-fog">
+          Katalog yalnızca sahibine açık. Devam etmek için yönetici şifresini gir.
+        </p>
+
+        <form onSubmit={submit} className="mt-5">
+          <label
+            htmlFor="admin-pw"
+            className="text-[10px] font-bold uppercase tracking-[0.18em] text-fog"
+          >
+            Yönetici şifresi
+          </label>
+          <div className="mt-2 flex gap-2">
+            <input
+              id="admin-pw"
+              type="password"
+              autoFocus
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="••••••••"
+              className="w-full rounded-lg border border-line bg-ink px-3.5 py-2.5 text-sm text-cream placeholder:text-fog/50 transition focus:border-amber/60 focus:outline-none"
+            />
+            <button
+              type="submit"
+              className="shrink-0 rounded-lg bg-amber px-4 py-2.5 text-sm font-bold text-ink transition hover:bg-ambersoft active:scale-95"
+            >
+              Aç
+            </button>
+          </div>
+          {wrong > 0 && (
+            <p className="mt-2.5 text-xs font-semibold text-clay">
+              Şifre yanlış — tekrar dene. ({wrong}. deneme)
+            </p>
+          )}
+        </form>
+
+        <p className="mt-6 border-t border-line/70 pt-4 text-[11px] leading-relaxed text-fog/70">
+          Şifre, projedeki{" "}
+          <code className="rounded bg-moss px-1 py-0.5 font-mono text-[10px] text-amber">.env</code>{" "}
+          dosyasında{" "}
+          <code className="rounded bg-moss px-1 py-0.5 font-mono text-[10px] text-amber">
+            VITE_ADMIN_PASSWORD
+          </code>{" "}
+          değişkeniyle tanımlanır. Boş bırakılırsa kilit ekranı kapanır.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- uygulama ---------- */
 
 export default function App() {
@@ -112,6 +221,7 @@ export default function App() {
   const [modal, setModal] = useState<ModalState>(null);
   const [seeding, setSeeding] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [locked, setLocked] = useState(() => ADMIN_PASSWORD.length > 0 && !readUnlocked());
 
   /* ----- bildirimler ----- */
   const dismissToast = (id: number) => setToasts((t) => t.filter((x) => x.id !== id));
@@ -123,6 +233,25 @@ export default function App() {
     const id = ++toastId.current;
     setToasts((t) => [...t.slice(-3), { id, msg, kind, actionLabel: action?.label, onAction: action?.fn }]);
     window.setTimeout(() => dismissToast(id), 5000);
+  };
+
+  /* ----- kilit ----- */
+  const unlock = () => {
+    try {
+      localStorage.setItem(LS_UNLOCKED, "1");
+    } catch {
+      /* gizli mod — sorun değil */
+    }
+    setLocked(false);
+    push("Kilit açıldı — hoş geldin.", "success");
+  };
+  const lock = () => {
+    try {
+      localStorage.removeItem(LS_UNLOCKED);
+    } catch {
+      /* gizli mod — sorun değil */
+    }
+    setLocked(true);
   };
 
   /* ----- kitap işlemleri ----- */
@@ -149,6 +278,30 @@ export default function App() {
 
   const patchBook = (id: string, patch: Partial<BookItem>) =>
     setBooks((l) => l.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+
+  const toggleFeature = (id: string) => {
+    const b = books.find((x) => x.id === id);
+    if (!b) return;
+    const on = !b.featured;
+    patchBook(id, { featured: on });
+    push(
+      on ? `“${trunc(b.title)}” vitrine kondu.` : `“${trunc(b.title)}” vitrinden indirildi.`,
+      "info"
+    );
+  };
+
+  const suggestShowcase = () => {
+    const top = [...books]
+      .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.addedAt - a.addedAt)
+      .slice(0, 6)
+      .filter((b) => !b.featured);
+    if (!top.length) {
+      push("Vitrine konacak yeni kitap kalmadı.", "info");
+      return;
+    }
+    setBooks((l) => l.map((b) => (top.some((t) => t.id === b.id) ? { ...b, featured: true } : b)));
+    push(`${top.length} kitap vitrine kondu.`, "success");
+  };
 
   const handleBookSubmit = async () => {
     const text = bookInput.trim();
@@ -306,9 +459,9 @@ export default function App() {
 
   const showcase = useMemo(
     () =>
-      [...books]
-        .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.addedAt - a.addedAt)
-        .slice(0, 10),
+      books
+        .filter((b) => b.featured)
+        .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.addedAt - a.addedAt),
     [books]
   );
 
@@ -337,6 +490,8 @@ export default function App() {
     el?.focus();
     el?.scrollIntoView({ block: "center", behavior: "smooth" });
   };
+
+  if (locked) return <LockScreen onUnlock={unlock} />;
 
   return (
     <div className="relative min-h-screen">
@@ -369,10 +524,10 @@ export default function App() {
             </span>
             <div>
               <h1 className="font-display text-[34px] font-black leading-none tracking-tight text-cream">
-                Raflık
+                Raf
               </h1>
               <p className="mt-1 text-xs tracking-wide text-fog">
-                Google Play kitapların & web sitelerin — tek kişilik vitrin
+                Google Play kitaplarım & web sitelerim — tek kişilik vitrin
               </p>
             </div>
           </div>
@@ -514,11 +669,32 @@ export default function App() {
                   <h2 className="font-display text-2xl font-black text-cream">
                     Vitrin
                     <span className="ml-2 align-middle text-[10px] font-bold uppercase tracking-[0.24em] text-amber">
-                      rafının yıldızları
+                      senin seçtiklerin
                     </span>
                   </h2>
-                  <p className="text-xs text-fog">puana göre · ilk {showcase.length}</p>
+                  <p className="text-xs text-fog">
+                    {showcase.length > 0
+                      ? `${showcase.length} kitap · puana göre`
+                      : "katalogdaki yıldızlardan seç"}
+                  </p>
                 </div>
+
+                {showcase.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-amber/30 bg-moss/40 px-6 py-9 text-center">
+                    <StarIcon size={22} className="mx-auto text-amber/70" />
+                    <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-fog">
+                      Vitrinin şimdilik boş. Aşağıdaki katalogda sergilemek istediğin kitapların
+                      kapağındaki <strong className="text-amber">yıldıza</strong> bas — yalnızca
+                      senin seçtiklerin burada durur.
+                    </p>
+                    <button
+                      onClick={suggestShowcase}
+                      className="mt-5 rounded-lg border border-amber/50 px-4 py-2 text-xs font-bold text-amber transition hover:bg-amber hover:text-ink active:scale-95"
+                    >
+                      Puanı en yüksek 6 kitabı vitrine koy
+                    </button>
+                  </div>
+                ) : (
                 <div className="relative pt-2">
                   <div className="flex snap-x gap-5 overflow-x-auto pb-3">
                     {showcase.map((b, i) => (
@@ -542,6 +718,7 @@ export default function App() {
                   <div className="wood h-[11px] rounded-full" />
                   <div className="mx-6 h-3 rounded-[100%] bg-black/50 blur-md" />
                 </div>
+                )}
               </section>
 
               {/* katalog */}
@@ -589,6 +766,7 @@ export default function App() {
                         index={i}
                         onOpen={() => setModal({ kind: "book", id: b.id })}
                         onDelete={() => removeBook(b.id)}
+                        onToggleFeature={() => toggleFeature(b.id)}
                       />
                     ))}
                   </div>
@@ -604,7 +782,7 @@ export default function App() {
                 Henüz siten yok
               </h2>
               <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-fog">
-                Oluşturduğun web sitelerinin URL'lerini ekle; Raflık ekran görüntüsünü çeker,
+                Oluşturduğun web sitelerinin URL'lerini ekle; Raf ekran görüntüsünü çeker,
                 canlı önizlemeyi hazırlar, başlığı bulur.
               </p>
               <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
@@ -672,10 +850,20 @@ export default function App() {
           <p className="flex items-center gap-2">
             <LogoMark size={14} className="text-amber" />
             <span>
-              <strong className="font-display text-cream">Raflık</strong> — verilerin yalnızca bu
+              <strong className="font-display text-cream">Raf</strong> — verilerin yalnızca bu
               tarayıcıda saklanır.
             </span>
           </p>
+          {ADMIN_PASSWORD && (
+            <button
+              onClick={lock}
+              title="Vitrini kilitle"
+              className="flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 font-semibold transition hover:border-amber/60 hover:text-amber active:scale-95"
+            >
+              <LockIcon size={12} />
+              Kilitle
+            </button>
+          )}
           {(books.length > 0 || sites.length > 0) && (
             <button
               onClick={resetAll}
@@ -699,6 +887,7 @@ export default function App() {
             onClose={() => setModal(null)}
             onDelete={() => removeBook(modalBook.id)}
             onNote={(note) => patchBook(modalBook.id, { note })}
+            onToggleFeature={() => toggleFeature(modalBook.id)}
           />
         </Modal>
       )}

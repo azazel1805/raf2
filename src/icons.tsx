@@ -53,12 +53,19 @@ export const SearchIcon = (p: IconProps) => (
   </svg>
 );
 
-export const StarIcon = ({ size, className }: IconProps) => (
+export const StarIcon = ({
+  size,
+  className,
+  filled = true,
+}: IconProps & { filled?: boolean }) => (
   <svg
     width={size ?? 14}
     height={size ?? 14}
     viewBox="0 0 24 24"
-    fill="currentColor"
+    fill={filled ? "currentColor" : "none"}
+    stroke={filled ? "none" : "currentColor"}
+    strokeWidth={filled ? 0 : 1.8}
+    strokeLinejoin="round"
     className={className}
     aria-hidden
   >
@@ -161,5 +168,12 @@ export const NoteIcon = (p: IconProps) => (
     <path d="M14 3v5h5" />
     <path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5z" />
     <path d="M9 13h6M9 17h4" />
+  </svg>
+);
+
+export const LockIcon = (p: IconProps) => (
+  <svg {...base(p.size, p.className)}>
+    <rect width="18" height="11" x="3" y="11" rx="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
   </svg>
 );

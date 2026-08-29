@@ -15,6 +15,8 @@ export interface BookItem {
   playUrl?: string;
   infoUrl?: string;
   note?: string;
+  /** Kullanıcı vitrine el ile seçtiyse true */
+  featured?: boolean;
   addedAt: number;
   source: "play" | "search" | "manual";
 }
@@ -43,6 +45,7 @@ export type Tab = "books" | "sites";
 
 export const LS_BOOKS = "raflik.books.v1";
 export const LS_SITES = "raflik.sites.v1";
+export const LS_UNLOCKED = "raf.unlocked.v1";
 
 export function fmtNum(n: number): string {
   return n.toLocaleString("tr-TR");

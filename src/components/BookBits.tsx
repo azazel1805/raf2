@@ -112,7 +112,7 @@ export function AddBookBar({
             Google Play kitabı ekle
           </h2>
           <p className="hidden text-xs text-fog sm:block">
-            Play bağlantısını yapıştır ya da kitap adını yaz — gerisini Raflık halleder.
+            Play bağlantısını yapıştır ya da kitap adını yaz — gerisini Raf halleder.
           </p>
         </div>
         <form onSubmit={submit} className="mt-2 flex gap-2">
@@ -202,11 +202,13 @@ export function BookCard({
   index,
   onOpen,
   onDelete,
+  onToggleFeature,
 }: {
   book: BookItem;
   index: number;
   onOpen: () => void;
   onDelete: () => void;
+  onToggleFeature: () => void;
 }) {
   return (
     <Reveal delay={(index % 6) * 45}>
@@ -246,6 +248,18 @@ export function BookCard({
           </div>
         </button>
         <button
+          onClick={onToggleFeature}
+          aria-label={book.featured ? "Vitrinden çıkar" : "Vitrine koy"}
+          title={book.featured ? "Vitrinden çıkar" : "Vitrine koy"}
+          className={`absolute left-1.5 top-1.5 z-10 rounded-md border p-1.5 transition active:scale-90 ${
+            book.featured
+              ? "border-amber/80 bg-amber text-ink opacity-100 shadow-md shadow-amber/30 hover:bg-ambersoft"
+              : "border-line bg-ink/85 text-fog opacity-0 hover:border-amber/60 hover:text-amber focus-visible:opacity-100 group-hover:opacity-100"
+          }`}
+        >
+          <StarIcon size={13} filled={book.featured} />
+        </button>
+        <button
           onClick={onDelete}
           aria-label={`${trunc(book.title)} kitabını sil`}
           className="absolute right-1.5 top-1.5 z-10 rounded-md border border-line bg-ink/85 p-1.5 text-fog opacity-0 transition hover:border-clay/60 hover:text-clay focus-visible:opacity-100 group-hover:opacity-100 active:scale-90"
@@ -273,11 +287,13 @@ export function BookModal({
   onClose,
   onDelete,
   onNote,
+  onToggleFeature,
 }: {
   book: BookItem;
   onClose: () => void;
   onDelete: () => void;
   onNote: (note: string) => void;
+  onToggleFeature: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [note, setNote] = useState(book.note ?? "");
@@ -334,6 +350,17 @@ export function BookModal({
                 <BookIcon size={14} /> Google Books önizleme
               </a>
             )}
+            <button
+              onClick={onToggleFeature}
+              className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-[13px] font-semibold transition active:scale-[0.98] ${
+                book.featured
+                  ? "border-amber/70 bg-amber/15 text-amber hover:bg-amber/25"
+                  : "border-line text-fog hover:border-amber/50 hover:text-amber"
+              }`}
+            >
+              <StarIcon size={14} filled={book.featured} />
+              {book.featured ? "Vitrinde — çıkar" : "Vitrine koy"}
+            </button>
           </div>
         </div>
 
