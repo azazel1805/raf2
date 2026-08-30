@@ -1064,8 +1064,7 @@ export default function App() {
           <p className="flex items-center gap-2">
             <LogoMark size={14} className="text-amber" />
             <span>
-              <strong className="font-display text-cream">Raf</strong> — katalog herkese açık,
-              ekleme &amp; silme şifre ister. Veriler Netlify'da saklanır, her cihazda aynıdır.
+              <strong className="font-display text-cream">Raf</strong> — tek kişilik vitrin
             </span>
           </p>
           {(books.length > 0 || sites.length > 0) && (
