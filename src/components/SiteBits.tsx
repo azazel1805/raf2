@@ -56,10 +56,10 @@ export function AddSiteBar({
       <div className="mx-auto max-w-6xl px-5 py-3.5">
         <div className="flex items-baseline gap-3">
           <h2 className="text-[11px] font-bold uppercase tracking-[0.22em] text-teal">
-            Web siteni ekle
+            
           </h2>
           <p className="hidden text-xs text-fog sm:block">
-            URL'yi yapıştır — ekran görüntüsü ve canlı önizleme otomatik hazırlanır.
+            
           </p>
         </div>
         <form onSubmit={submit} className="mt-2 flex gap-2">
