@@ -1,0 +1,29 @@
+{
+  "id": "/",
+  "name": "Raf — Google Play Kitaplarım & Web Sitelerim",
+  "short_name": "Raf",
+  "description": "Google Play kitapların ve web sitelerin için tek kişilik vitrin. Tek tıkla ekle, önizle, çevrimdışı gez.",
+  "lang": "tr",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0C1210",
+  "theme_color": "#0C1210",
+  "categories": ["books", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -1,0 +1,275 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0c1210;
+  --color-pine: #121a16;
+  --color-moss: #18241e;
+  --color-line: #2a382f;
+  --color-fog: #8fa398;
+  --color-cream: #efe7d7;
+  --color-amber: #e8a33d;
+  --color-ambersoft: #f2bc5c;
+  --color-teal: #55a08e;
+  --color-clay: #d96f52;
+
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-body: "Space Grotesk", "Trebuchet MS", sans-serif;
+}
+
+html {
+  scrollbar-color: #2a382f #0c1210;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--color-ink);
+  color: var(--color-cream);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(232, 163, 61, 0.85);
+  color: #0c1210;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(232, 163, 61, 0.7);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0c1210;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a382f;
+  border-radius: 8px;
+  border: 2px solid #0c1210;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3c5044;
+}
+
+/* ---------- signature surfaces ---------- */
+
+.wood {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.12) 0px,
+      rgba(0, 0, 0, 0.12) 2px,
+      transparent 2px,
+      transparent 64px
+    ),
+    linear-gradient(180deg, #7a4a26 0%, #5d3419 55%, #43250e 100%);
+  box-shadow:
+    0 12px 20px -10px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 214, 150, 0.28);
+}
+
+.noise {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  opacity: 0.045;
+}
+
+/* ---------- motion ---------- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 0.6s ease,
+    transform 0.6s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+.mote {
+  position: absolute;
+  border-radius: 9999px;
+  background: rgba(240, 200, 130, 0.55);
+  animation-name: floaty;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes floaty {
+  0% {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.75;
+  }
+  70% {
+    opacity: 0.35;
+  }
+  100% {
+    transform: translateY(-90px);
+    opacity: 0;
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.modal-pop {
+  animation: popIn 0.3s cubic-bezier(0.2, 0.8, 0.3, 1.1) both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.modal-fade {
+  animation: fadeIn 0.22s ease both;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.toast-in {
+  animation: toastIn 0.32s cubic-bezier(0.2, 0.8, 0.3, 1.1) both;
+}
+
+@keyframes shimmerMove {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+.shimmer {
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.03) 30%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.03) 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmerMove 1.6s linear infinite;
+}
+
+@keyframes spinSlow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin {
+  animation: spinSlow 0.8s linear infinite;
+}
+
+/* ---------- raf radyo ---------- */
+
+/* yavaş plak dönüşü */
+@keyframes vinyl {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.vinyl {
+  animation: vinyl 3.4s linear infinite;
+  animation-play-state: paused;
+}
+.vinyl.playing {
+  animation-play-state: running;
+}
+
+/* akan şarkı adı */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-track {
+  animation: marquee 14s linear infinite;
+}
+
+/* ekolayzer çubukları */
+@keyframes eqbar {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.eqbar {
+  transform-origin: bottom;
+  animation: eqbar 0.9s ease-in-out infinite;
+  animation-play-state: paused;
+}
+.eqbar.playing {
+  animation-play-state: running;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+  .mote {
+    display: none;
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-9px);
+  }
+  40% {
+    transform: translateX(8px);
+  }
+  60% {
+    transform: translateX(-5px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
+}
+.shake {
+  animation: shake 0.4s ease both;
+}

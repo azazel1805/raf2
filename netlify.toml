@@ -1,0 +1,18 @@
+# Netlify yapılandırması — repo kökünde durur, başka ayar gerekmez.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Sunucu tarafı işlevler (paylaşılan katalog API'si)
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# SPA yönlendirmesi: tüm istekler index.html'e düşsün
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
