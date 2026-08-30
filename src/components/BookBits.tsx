@@ -118,10 +118,10 @@ export function AddBookBar({
       <div className="mx-auto max-w-6xl px-5 py-3.5">
         <div className="flex items-baseline gap-3">
           <h2 className="text-[11px] font-bold uppercase tracking-[0.22em] text-amber">
-            Google Play kitabı ekle
+            
           </h2>
           <p className="hidden text-xs text-fog sm:block">
-            Play bağlantısını yapıştır ya da kitap adını yaz — gerisini Raf halleder.
+            
           </p>
         </div>
         <form onSubmit={submit} className="mt-2 flex gap-2">
